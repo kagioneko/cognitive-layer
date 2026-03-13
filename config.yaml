@@ -1,0 +1,195 @@
+# Cognitive Layer Integration - 設定ファイル
+# state_to_bias_rules と policy_rules はここで管理する。
+# MCP サーバー本体のコードには埋め込まない。
+
+# ------------------------------------------------------------------ #
+# NeuroState デフォルト値（0-100スケール）
+# ------------------------------------------------------------------ #
+neurostate_defaults:
+  D: 50   # Dopamine
+  S: 50   # Serotonin
+  C: 50   # Acetylcholine
+  O: 20   # Oxytocin
+  G: 50   # GABA
+  E: 50   # Endorphin
+  corruption: 0
+
+# ------------------------------------------------------------------ #
+# バイアス重み制限
+# ------------------------------------------------------------------ #
+bias_limits:
+  default_min: 0.0
+  default_max: 1.0
+
+# ------------------------------------------------------------------ #
+# State → Bias マッピングルール
+#
+# if_key  : NeuroStateNormalized のフィールド名 (D/S/C/O/G/E/corruption)
+# operator: > / < / >=/ <=
+# threshold: 0.0〜1.0（正規化済み値で比較）
+# adjust  : バイアス名 → delta（加算量、負値で減算）
+# ------------------------------------------------------------------ #
+state_to_bias_rules:
+  # Dopamine 高 → 楽観・新規探索バイアス上昇
+  - if_key: D
+    operator: ">"
+    threshold: 0.7
+    adjust:
+      novelty_seeking_bias: 0.3
+      optimism_bias: 0.2
+      dunning_kruger: 0.1
+
+  # Serotonin 高 → 安定志向・正常性バイアス上昇
+  - if_key: S
+    operator: ">"
+    threshold: 0.6
+    adjust:
+      stability_bias: 0.2
+      normalcy_bias: 0.15
+      sunk_cost_fallacy: 0.1
+
+  # Oxytocin 高 → 共感・ハロー効果上昇
+  - if_key: O
+    operator: ">"
+    threshold: 0.7
+    adjust:
+      empathy_bias: 0.3
+      halo_effect: 0.2
+      authority_bias: 0.1
+
+  # GABA 低 → 不安・敵意帰属・確証バイアス上昇
+  - if_key: G
+    operator: "<"
+    threshold: 0.3
+    adjust:
+      hostile_attribution_bias: 0.2
+      confirmation_bias: 0.2
+      anchoring_bias: 0.1
+
+  # Endorphin 高 → 楽観・ハロー効果上昇
+  - if_key: E
+    operator: ">"
+    threshold: 0.7
+    adjust:
+      optimism_bias: 0.2
+      halo_effect: 0.15
+
+  # Acetylcholine 高 → 集中過剰によるアンカリング上昇
+  - if_key: C
+    operator: ">"
+    threshold: 0.75
+    adjust:
+      anchoring_bias: 0.2
+      confirmation_bias: 0.1
+
+  # Corruption 高 → 確証・敵意・権威バイアス急上昇
+  - if_key: corruption
+    operator: ">"
+    threshold: 0.5
+    adjust:
+      confirmation_bias: 0.35
+      hostile_attribution_bias: 0.3
+      authority_bias: -0.2
+
+# ------------------------------------------------------------------ #
+# Policy マッピングルール
+#
+# based_on  : NeuroStateNormalized または biases の参照キー
+# source    : "state" (NeuroState) or "bias" (Bias Engine)
+# affects   : Policy フィールド名
+# weight    : 影響係数（正=同方向、負=逆方向）
+# ------------------------------------------------------------------ #
+policy_rules:
+  # Dopamine → exploration, verbosity を上げる
+  - based_on: D
+    source: state
+    affects: exploration
+    weight: 0.7
+
+  - based_on: D
+    source: state
+    affects: verbosity
+    weight: 0.5
+
+  # Serotonin → warmth, openness を上げる / rigidity を下げる
+  - based_on: S
+    source: state
+    affects: warmth
+    weight: 0.6
+
+  - based_on: S
+    source: state
+    affects: openness_to_contradiction
+    weight: 0.4
+
+  - based_on: S
+    source: state
+    affects: rigidity
+    weight: -0.3
+
+  # GABA → caution を上げる（落ち着き → 慎重さ）
+  - based_on: G
+    source: state
+    affects: caution
+    weight: 0.5
+
+  # Oxytocin → warmth を上げる
+  - based_on: O
+    source: state
+    affects: warmth
+    weight: 0.5
+
+  # corruption → defensiveness と rigidity を上げる / openness を下げる
+  - based_on: corruption
+    source: state
+    affects: defensiveness
+    weight: 0.8
+
+  - based_on: corruption
+    source: state
+    affects: rigidity
+    weight: 0.6
+
+  - based_on: corruption
+    source: state
+    affects: openness_to_contradiction
+    weight: -0.7
+
+  # confirmation_bias → openness と rigidity を逆方向に
+  - based_on: confirmation_bias
+    source: bias
+    affects: openness_to_contradiction
+    weight: -0.6
+
+  - based_on: confirmation_bias
+    source: bias
+    affects: rigidity
+    weight: 0.5
+
+  # hostile_attribution_bias → defensiveness, caution を上げる
+  - based_on: hostile_attribution_bias
+    source: bias
+    affects: defensiveness
+    weight: 0.7
+
+  - based_on: hostile_attribution_bias
+    source: bias
+    affects: caution
+    weight: 0.4
+
+  # empathy_bias → warmth を上げる
+  - based_on: empathy_bias
+    source: bias
+    affects: warmth
+    weight: 0.6
+
+  # dunning_kruger → exploration を上げ、caution を下げる
+  - based_on: dunning_kruger
+    source: bias
+    affects: exploration
+    weight: 0.4
+
+  - based_on: dunning_kruger
+    source: bias
+    affects: caution
+    weight: -0.5
